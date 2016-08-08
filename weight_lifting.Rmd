@@ -1,0 +1,105 @@
+---
+title: "Analysis of Barbell Workouts"
+author: "M Erlandson"
+date: "August 6, 2016"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+# Summary and Objective
+
+This project will analyze variables within the Weight Lifting Exercises dataset and attempt to predict the classe outcome of "correct" or "incorrect" on performing the weight lifting of the test subjects.
+
+## Load Data
+
+Training Data was loaded from this file:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+Testing Data was loaded from this file:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+Information about the dataset is found on this website, under the "Weight Lifting Exercise Dataset" heading:
+http://groupware.les.inf.puc-rio.br/har
+
+All calculations done in R 3.2.2 and RStudio 0.99.473 and Windows 10.
+Libraries used are ggplot2, caret, rpart, and randomForest.
+
+```{r libraries, echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(caret)
+library(rpart)
+library(randomForest)
+```
+
+```{r load, echo=FALSE, cache=TRUE}
+trainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(trainURL, "pml-training.csv")
+download.file(testURL, "pml-testing.csv")
+pmlTraining <- read.csv("pml-training.csv")
+pmlTesting <- read.csv("pml-testing.csv")
+```
+
+Training dataset contains **19622 observations** from 6 test subjects performing repetitions of dumbell curls. Sensors in 4 places (arm, forearm, belt, and dumbbell) recorded **almost 160 variables**, like roll, pitch, yaw, acceleration, and gyros at XYZ positions. Most have number or integer values, but a few are factor variables due to NAs and !Div/0 errors. The outcome variable is **"classe"** with designations **"A"** (correct specs followed), **"B"** (elbows to front), **"C"** (lift halfway), **"D"** (lower halfway), and **"E"** (hips to front). 
+
+## Exploratory Analysis
+
+Let's look at the data and determine which factors we wish to use. We need to take out the non-important variables (X, username, time stamps, windows) and all those that have lots of NAs (kurtosis, max and min specific values, amplitudes). We are left with 52 possible predictor variables, plus the outcome. We also need to do the same thing on the test dataset for later.
+
+```{r select}
+set.seed(133)
+pmlTrainSub <- subset(pmlTraining, select=c(8:11,37:49,60:68,84:86,102,113:124,140,151:160))
+pmlTestSub <- subset(pmlTesting, select=c(8:11,37:49,60:68,84:86,102,113:124,140,151:160))
+inTrain <- createDataPartition(pmlTrainSub$classe, p=0.75, list=FALSE)
+pmlTrainSet <- pmlTrainSub[inTrain,]
+pmlValSet <- pmlTrainSub[-inTrain,]
+```
+
+We also want to be able to cross-validate and find out-of-bag error rates before running the test set, so we divided the training set up 75% for training and 25% for validation.
+
+Let's look at some variables in qplots to see if we find any trends.
+
+```{r plots, fig.height=3}
+qplot(total_accel_belt, pitch_arm, data=pmlTrainSet, colour=classe)
+qplot(accel_arm_z, pitch_forearm, data=pmlTrainSet, colour=classe)
+qplot(roll_dumbbell, pitch_dumbbell, data=pmlTrainSet, colour=classe)
+```
+
+Hmmm, lots of information all over the place, but no descernable trends. We will have to let the model fit itself against all 52 predictors.
+
+## Model Fitting
+
+```{r trees, cache=TRUE}
+modelTree <- train(classe ~ ., method = "rpart", data = pmlTrainSub)
+print(modelTree$finalModel)
+```
+
+We tried running the model as a classification tree, since we are trying to predict classes, but it only fitted A, B, C, and E. There was no output level for D, so this is not a good model to use for prediction. [Note: I ran it on full training set before realizing I needed to split for validation, but it's not a good model, so I didn't bother to rerun it on the split set.]
+
+Instead, let's use random forests. They are very accurate (but computationally expensive) and have the benefit of internal cross-validation. Default mtry is square root of the number of predictors, in this case about 7, but we will let the train function determine the best fit. Ntrees is defaulted to 500.
+
+```{r rf, cache=TRUE}
+mtry <- 2
+modelRF <- train(classe ~ ., method="rf", data=pmlTrainSet)
+```
+```{r rf2}
+print(modelRF)
+print(modelRF$finalModel)
+```
+
+According to this print-out, the classification should work very well, with only classes "B" and "D" having at most 1% in-sample error rate. The out-of-sample error rate on the validation and test sets will be greater, especially since random forests tend to overfit to the training data.
+
+## Validation and Test
+
+```{r valpredict}
+predRF <- predict(modelRF, pmlValSet)
+confusionMatrix(predRF, pmlValSet$classe)
+```
+
+So our trees fit very well with an accuracy of 99% and the OOB error rate of 1%. 
+
+Below is the run on the test set, which we will submit for grading. Here are our answers for the twenty test scenarios.
+
+```{r testpredict}
+predRFtest <- predict(modelRF, pmlTestSub)
+predRFtest
+```

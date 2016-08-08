@@ -47,19 +47,19 @@ Let's look at some variables in qplots to see if we find any trends.
 qplot(total_accel_belt, pitch_arm, data=pmlTrainSet, colour=classe)
 ```
 
-![](weight_lifting_files/figure-html/plots-1.png)
+![](plots-1.png)
 
 ```r
 qplot(accel_arm_z, pitch_forearm, data=pmlTrainSet, colour=classe)
 ```
 
-![](weight_lifting_files/figure-html/plots-2.png)
+![](plots-2.png)
 
 ```r
 qplot(roll_dumbbell, pitch_dumbbell, data=pmlTrainSet, colour=classe)
 ```
 
-![](weight_lifting_files/figure-html/plots-3.png)
+![](plots-3.png)
 
 Hmmm, lots of information all over the place, but no descernable trends. We will have to let the model fit itself against all 52 predictors.
 
